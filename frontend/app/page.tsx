@@ -22,6 +22,10 @@ export interface ScannedImages {
   back: string;
 }
 
+// ---------------------------------------------------------
+// THIS IS THE CONTRACT YOUR BACKEND MUST FOLLOW
+// The JSON response from the backend MUST match this structure
+// ---------------------------------------------------------
 export interface MedicineResult {
   name: string;
   dosage: string;
@@ -41,14 +45,18 @@ export interface MedicineResult {
   extractedText: string;
 }
 
+// HELPER: Converts Base64 string to a Blob (File) for upload
+const base64ToBlob = async (base64Data: string) => {
+  const response = await fetch(base64Data);
+  const blob = await response.blob();
+  return blob;
+};
+
 export default function Home() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
-
-  // State to hold both images
   const [selectedImages, setSelectedImages] = useState<ScannedImages | null>(
     null
   );
-
   const [medicineResult, setMedicineResult] = useState<MedicineResult | null>(
     null
   );
@@ -62,40 +70,67 @@ export default function Home() {
     setCurrentScreen("image-review");
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    if (!selectedImages) return;
+
     setCurrentScreen("analyzing");
 
-    // Simulate API call - sending both front and back
-    console.log(
-      "Analyzing Front:",
-      selectedImages?.front ? "Present" : "Missing"
-    );
-    console.log(
-      "Analyzing Back:",
-      selectedImages?.back ? "Present" : "Missing"
-    );
+    try {
+      // --- STEP 1: PREPARE DATA ---
+      const formData = new FormData();
+      const frontBlob = await base64ToBlob(selectedImages.front);
+      const backBlob = await base64ToBlob(selectedImages.back);
 
-    setTimeout(() => {
-      setMedicineResult({
-        name: "Paracetamol",
-        dosage: "500mg",
-        manufacturer: "PharmaCorp Industries",
-        activeIngredient: "Acetaminophen",
-        uses: "Pain relief and fever reduction",
-        sideEffects: "Nausea, rash, or allergic reactions (rare)",
-        confidence: {
-          overall: 94.5,
-          yoloDetection: 96.8,
-          ocrAccuracy: 92.3,
-        },
-        aiModels: {
-          detectionModel: "YOLOv8",
-          ocrModel: "Tesseract OCR",
-        },
-        extractedText: "PARACETAMOL 500MG PHARMACORP INDUSTRIES",
+      formData.append("front_image", frontBlob, "front.jpg");
+      formData.append("back_image", backBlob, "back.jpg");
+
+      // --- STEP 2: CALL API #1 (UPLOAD) ---
+      // Ask Backend Engr for this URL (e.g., /api/upload)
+      const UPLOAD_URL = "http://localhost:8000/api/upload_images";
+
+      const uploadResponse = await fetch(UPLOAD_URL, {
+        method: "POST",
+        body: formData,
       });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload Failed: ${uploadResponse.statusText}`);
+      }
+
+      // Get the ID from the first response
+      // CRITICAL: Ask your backend engr what this key is named!
+      const uploadData = await uploadResponse.json();
+      const scanId = uploadData.scan_id; // <--- Example: could be .id, .jobId, etc.
+
+      if (!scanId) {
+        throw new Error("Backend did not return a Scan ID");
+      }
+
+      // --- STEP 3: CALL API #2 (FETCH RESULTS) ---
+      // Ask Backend Engr for this URL structure (e.g., /api/results/{id})
+      const RESULTS_URL = `http://localhost:8000/api/get_results/${scanId}`;
+
+      const resultsResponse = await fetch(RESULTS_URL, {
+        method: "GET", // Usually GET for fetching results
+        // Headers might be needed depending on backend
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!resultsResponse.ok) {
+        throw new Error(`Result Fetch Failed: ${resultsResponse.statusText}`);
+      }
+
+      // --- STEP 4: UPDATE UI ---
+      const realData: MedicineResult = await resultsResponse.json();
+      setMedicineResult(realData);
       setCurrentScreen("results");
-    }, 2500);
+    } catch (error) {
+      console.error("Error analyzing medicine:", error);
+      alert("Failed to analyze images. Check console.");
+      setCurrentScreen("image-review");
+    }
   };
 
   const handleBack = () => {
@@ -103,7 +138,6 @@ export default function Home() {
       setCurrentScreen("home");
     } else if (currentScreen === "image-review") {
       setCurrentScreen("scan-options");
-      // Reset images if going back to scan options
       setSelectedImages(null);
     } else if (currentScreen === "results") {
       setCurrentScreen("home");
@@ -129,7 +163,6 @@ export default function Home() {
         />
       )}
 
-      {/* FIXED: Removed 'imageData' prop, only passing 'images' */}
       {currentScreen === "image-review" && selectedImages && (
         <ImageReview
           images={selectedImages}
@@ -140,7 +173,6 @@ export default function Home() {
 
       {currentScreen === "analyzing" && <AnalyzingScreen />}
 
-      {/* FIXED: Removed 'uploadedImage' prop, only passing 'uploadedImages' */}
       {currentScreen === "results" && medicineResult && (
         <ResultsScreen
           result={medicineResult}
