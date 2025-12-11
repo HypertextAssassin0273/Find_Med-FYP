@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+ultralytics
+opencv-python-headless
+pillow
+numpy
+requests
+paddleocr       # or easyocr if you prefer
+paddlepaddle    # ensure version matches paddleocr requirements
+sentence-transformers
+rapidfuzz
+python-multipart
+pyyaml

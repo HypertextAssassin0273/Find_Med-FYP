@@ -1,4 +1,8 @@
-pandas
+fastapi
+uvicorn
+ultralytics
+opencv-python-headless
 numpy
-matplotlib
-sklearn
+pillow
+requests
+python-multipart
