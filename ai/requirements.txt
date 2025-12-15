@@ -6,3 +6,5 @@ numpy
 pillow
 requests
 python-multipart
+paddleocr>=2.6.0
+paddlepaddle>=2.5.0
